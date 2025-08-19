@@ -5,11 +5,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.LilyPadBlock;
 import net.minecraft.entity.*;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageSources;
 import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.data.TrackedData;
-import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.CreakingEntity;
 import net.minecraft.entity.mob.WaterCreatureEntity;
 import net.minecraft.entity.passive.AnimalEntity;
@@ -17,17 +13,14 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.VehicleEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemConvertible;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.BoatPaddleStateC2SPacket;
-import net.minecraft.particle.ParticleTypes;
+import net.minecraft.network.listener.ClientPlayPacketListener;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
 import net.minecraft.predicate.entity.EntityPredicates;
 import net.minecraft.registry.tag.EntityTypeTags;
 import net.minecraft.registry.tag.FluidTags;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
+import net.minecraft.server.network.EntityTrackerEntry;
 import net.minecraft.storage.ReadView;
 import net.minecraft.storage.WriteView;
 import net.minecraft.util.ActionResult;
@@ -38,8 +31,6 @@ import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.BlockLocating;
 import net.minecraft.world.World;
-import net.minecraft.world.event.GameEvent;
-import net.thefluffycart.mr_scoot.EVLToys;
 import net.thefluffycart.mr_scoot.item.EVLItems;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,6 +46,8 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     private boolean pressingRight;
     private boolean pressingForward;
     private boolean pressingBack;
+    private boolean pressingHonk;
+    private boolean canHonk;
     private double waterLevel;
     private float nearbySlipperiness;
     private MrScootEntity.Location location;
@@ -69,24 +62,18 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
         this.intersectionChecked = true;
     }
 
-    public void setItemSupplier(Supplier<Item> supplier) {
-        this.itemSupplier = supplier;
-    }
-
-
-    public void initPosition(double x, double y, double z) {
-        this.setPosition(x, y, z);
-        this.lastX = x;
-        this.lastY = y;
-        this.lastZ = z;
-    }
-
     protected Entity.MoveEffect getMoveEffect() {
         return MoveEffect.EVENTS;
     }
 
+    @Override
     protected void initDataTracker(DataTracker.Builder builder) {
         super.initDataTracker(builder);
+    }
+
+    @Override
+    public Packet<ClientPlayPacketListener> createSpawnPacket(EntityTrackerEntry trackerEntry) {
+        return new EntitySpawnS2CPacket(this, trackerEntry);
     }
 
     public boolean collidesWith(Entity other) {
@@ -125,12 +112,14 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
 
     protected Vec3d getPassengerAttachmentPos(Entity passenger, EntityDimensions dimensions, float scaleFactor) {
         float f = this.getPassengerHorizontalOffset();
+        double g = this.getPassengerAttachmentY(dimensions);
         if (this.getPassengerList().size() > 1) {
             int i = this.getPassengerList().indexOf(passenger);
             if (i == 0) {
                 f = 0.2F;
             } else {
-                f = -0.6F;
+                f = 0.3F;
+                g = 1F;
             }
 
             if (passenger instanceof AnimalEntity) {
@@ -190,6 +179,13 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     public void tick() {
         this.lastLocation = this.location;
         this.location = this.checkLocation();
+        if (this.pressingHonk)
+        {
+            for (int count = 0; count < 1600; count++)
+            {
+
+            }
+        }
         if (this.location != MrScootEntity.Location.UNDER_WATER && this.location != MrScootEntity.Location.UNDER_FLOWING_WATER) {
             this.ticksUnderwater = 0.0F;
         } else {
@@ -214,19 +210,18 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
             this.updateVelocity();
 
             Vec3d velocity = this.getVelocity();
-            Vec3d originalVelocity = velocity;
 
             this.move(MovementType.SELF, velocity);
 
             if (this.horizontalCollision) {
-                this.setVelocity(originalVelocity);
+                this.setVelocity(velocity);
                 Vec3d stepUp = new Vec3d(velocity.x, 0.55, velocity.z);
                 Box nextBox = this.getBoundingBox().offset(stepUp);
 
                 if (this.getWorld().isSpaceEmpty(this, nextBox)) {
-                    this.setVelocity(originalVelocity);
+                    this.setVelocity(velocity);
                     this.setPosition(this.getX(), this.getY() + 0.55, this.getZ());
-                    this.move(MovementType.SELF, originalVelocity);
+                    this.move(MovementType.SELF, velocity);
                 }
             }
         }
@@ -286,25 +281,6 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     @Nullable
-    protected SoundEvent getPaddleSound() {
-        SoundEvent var10000;
-        switch (this.checkLocation().ordinal()) {
-            case 0:
-            case 1:
-            case 2:
-                var10000 = SoundEvents.ENTITY_BOAT_PADDLE_WATER;
-                break;
-            case 3:
-                var10000 = SoundEvents.ENTITY_BOAT_PADDLE_LAND;
-                break;
-            default:
-                var10000 = null;
-        }
-
-        return var10000;
-    }
-
-    @Nullable
     public Leashable.LeashData getLeashData() {
         return this.leashData;
     }
@@ -314,7 +290,7 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     public final ItemStack getPickBlockStack() {
-        return new ItemStack(EVLItems.BEER);
+        return new ItemStack(EVLItems.MR_SCOOT_ITEM);
     }
 
     public void setLeashData(@Nullable Leashable.LeashData leashData) {
@@ -484,7 +460,7 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     protected double getGravity() {
-        return 0.04;
+        return 0.06;
     }
 
     private void updateVelocity() {
@@ -618,7 +594,7 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     protected int getMaxPassengers() {
-        return 1;
+        return 2;
     }
 
     @Nullable
@@ -634,11 +610,12 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
         return var10000;
     }
 
-    public void setInputs(boolean pressingLeft, boolean pressingRight, boolean pressingForward, boolean pressingBack) {
+    public void setInputs(boolean pressingLeft, boolean pressingRight, boolean pressingForward, boolean pressingBack, boolean pressingHonk) {
         this.pressingLeft = pressingLeft;
         this.pressingRight = pressingRight;
         this.pressingForward = pressingForward;
         this.pressingBack = pressingBack;
+        this.pressingHonk = pressingHonk;
     }
 
     public boolean isSubmergedInWater() {

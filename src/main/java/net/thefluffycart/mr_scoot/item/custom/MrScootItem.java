@@ -35,7 +35,6 @@ public class MrScootItem extends Item {
     }
 
     public ActionResult use(World world, PlayerEntity user, Hand hand) {
-        System.out.println("Item Used");
         ItemStack itemStack = user.getStackInHand(hand);
         BlockHitResult blockHitResult = raycast(world, user, RaycastContext.FluidHandling.NONE);
         if (blockHitResult.getType() != HitResult.Type.BLOCK) {

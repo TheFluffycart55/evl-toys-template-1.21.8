@@ -15,7 +15,6 @@ public class EVLClient implements ClientModInitializer {
     public void onInitializeClient() {
         EntityModelLayerRegistry.registerModelLayer(MrScootModel.MR_SCOOT, MrScootModel::getTexturedModelData);
         EntityRendererRegistry.register(EVLToysEntities.MR_SCOOT, MrScootRenderer::new);
-        // Inside your mod's client initializer
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null && client.player.hasVehicle()) {
                 Entity vehicle = client.player.getVehicle();
@@ -24,7 +23,8 @@ public class EVLClient implements ClientModInitializer {
                     boolean right = client.options.rightKey.isPressed();
                     boolean forward = client.options.forwardKey.isPressed();
                     boolean back = client.options.backKey.isPressed();
-                    scoot.setInputs(left, right, forward, back);
+                    boolean honk = client.options.useKey.isPressed();
+                    scoot.setInputs(left, right, forward, back, honk);
                 }
             }
         });

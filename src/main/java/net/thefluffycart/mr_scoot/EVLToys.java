@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRe
 import net.minecraft.util.Identifier;
 import net.thefluffycart.mr_scoot.entity.EVLToysEntities;
 import net.thefluffycart.mr_scoot.entity.custom.MrScootEntity;
+import net.thefluffycart.mr_scoot.item.EVLItemGroups;
 import net.thefluffycart.mr_scoot.item.EVLItems;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ public class EVLToys implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		EVLItemGroups.registerItemGroups();
 		EVLItems.registerModItems();
 		EVLToysEntities.registerModEntities();
 
