@@ -10,6 +10,7 @@ import net.minecraft.entity.mob.CreakingEntity;
 import net.minecraft.entity.mob.WaterCreatureEntity;
 import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.vehicle.AbstractBoatEntity;
 import net.minecraft.entity.vehicle.VehicleEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.item.Item;
@@ -129,6 +130,13 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
         return (new Vec3d((double)0.0F, this.getPassengerAttachmentY(dimensions), (double)f)).rotateY(-this.getYaw() * ((float)Math.PI / 180F));
     }
 
+    public void initPosition(double x, double y, double z) {
+        this.setPosition(x, y, z);
+        this.lastX = x;
+        this.lastY = y;
+        this.lastZ = z;
+    }
+
     public void pushAwayFrom(Entity entity) {
         if (entity instanceof MrScootEntity) {
             if (entity.getBoundingBox().minY < this.getBoundingBox().maxY) {
@@ -212,18 +220,6 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
             Vec3d velocity = this.getVelocity();
 
             this.move(MovementType.SELF, velocity);
-
-            if (this.horizontalCollision) {
-                this.setVelocity(velocity);
-                Vec3d stepUp = new Vec3d(velocity.x, 0.55, velocity.z);
-                Box nextBox = this.getBoundingBox().offset(stepUp);
-
-                if (this.getWorld().isSpaceEmpty(this, nextBox)) {
-                    this.setVelocity(velocity);
-                    this.setPosition(this.getX(), this.getY() + 0.55, this.getZ());
-                    this.move(MovementType.SELF, velocity);
-                }
-            }
         }
         else {
             this.setVelocity(Vec3d.ZERO);
@@ -234,7 +230,6 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
             this.startMovement();
         }
 
-        this.tickBlockCollision();
         this.tickBlockCollision();
 
         List<Entity> list = this.getWorld().getOtherEntities(this, this.getBoundingBox().expand((double)0.2F, (double)-0.01F, (double)0.2F), EntityPredicates.canBePushedBy(this));
@@ -487,7 +482,11 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
             } else if (this.location == MrScootEntity.Location.UNDER_WATER) {
                 e = (double)0.01F;
                 f = 0.45F;
-            } else if (this.location == MrScootEntity.Location.ON_LAND) {
+            }
+            else if (this.location == MrScootEntity.Location.IN_AIR) {
+                f = 0.9F;
+            }
+            else if (this.location == MrScootEntity.Location.ON_LAND) {
                 f = 0.91F;
                 e = this.nearbySlipperiness;
                 if (this.getControllingPassenger() instanceof PlayerEntity) {
@@ -496,12 +495,12 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
             }
 
             Vec3d vec3d = this.getVelocity();
-            this.setVelocity(vec3d.x * (double)f, vec3d.y + d, vec3d.z * (double)f);
             this.yawVelocity *= f;
-            if (e > (double)0.0F) {
-                Vec3d vec3d2 = this.getVelocity();
-                this.setVelocity(vec3d2.x, (vec3d2.y + e * (this.getGravity() / 0.65)) * (double)0.75F, vec3d2.z);
+            double newY = vec3d.y + d;
+            if (Math.abs(newY) < 0.003 && this.location == Location.ON_LAND) {
+                newY = 0.0;
             }
+            this.setVelocity(vec3d.x * f, newY, vec3d.z * f);
         }
 
     }

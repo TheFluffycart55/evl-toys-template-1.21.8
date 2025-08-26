@@ -3,9 +3,9 @@
 	"id": "scoot",
 	"version": "${version}",
 	"name": "E.V.L Toys",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "Adds Mr. Scoot, a friend of all ages! Speed around in a plastic toy car (Sound Effects not included, must be made via vroom vrooms from yourself)",
 	"authors": [
-		"Me!"
+		"TheFluffycart55"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",

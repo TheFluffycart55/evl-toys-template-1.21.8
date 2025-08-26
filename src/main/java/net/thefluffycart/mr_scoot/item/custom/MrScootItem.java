@@ -27,48 +27,67 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 public class MrScootItem extends Item {
-    private final EntityType<? extends MrScootEntity> boatEntityType;
+    private final EntityType<? extends MrScootEntity> mrScootType;
 
-    public MrScootItem(EntityType<? extends MrScootEntity> boatEntityType, Item.Settings settings) {
+    public MrScootItem(EntityType<? extends MrScootEntity> mrScootType, Item.Settings settings) {
         super(settings);
-        this.boatEntityType = boatEntityType;
+        this.mrScootType = mrScootType;
     }
 
     public ActionResult use(World world, PlayerEntity user, Hand hand) {
         ItemStack itemStack = user.getStackInHand(hand);
-        BlockHitResult blockHitResult = raycast(world, user, RaycastContext.FluidHandling.NONE);
-        if (blockHitResult.getType() != HitResult.Type.BLOCK) {
+        HitResult hitResult = raycast(world, user, RaycastContext.FluidHandling.ANY);
+        if (hitResult.getType() == HitResult.Type.MISS) {
             return ActionResult.PASS;
+        } else {
+            Vec3d vec3d = user.getRotationVec(1.0F);
+            double d = (double)5.0F;
+            List<Entity> list = world.getOtherEntities(user, user.getBoundingBox().stretch(vec3d.multiply((double)5.0F)).expand((double)1.0F), EntityPredicates.CAN_HIT);
+            if (!list.isEmpty()) {
+                Vec3d vec3d2 = user.getEyePos();
+
+                for(Entity entity : list) {
+                    Box box = entity.getBoundingBox().expand((double)entity.getTargetingMargin());
+                    if (box.contains(vec3d2)) {
+                        return ActionResult.PASS;
+                    }
+                }
+            }
+
+            if (hitResult.getType() == HitResult.Type.BLOCK) {
+                MrScootEntity mrScootEntity = this.createEntity(world, hitResult, itemStack, user);
+                if (mrScootEntity == null) {
+                    return ActionResult.FAIL;
+                } else {
+                    mrScootEntity.setYaw(user.getYaw());
+                    if (!world.isSpaceEmpty(mrScootEntity, mrScootEntity.getBoundingBox())) {
+                        return ActionResult.FAIL;
+                    } else {
+                        if (!world.isClient) {
+                            world.spawnEntity(mrScootEntity);
+                            world.emitGameEvent(user, GameEvent.ENTITY_PLACE, hitResult.getPos());
+                            itemStack.decrementUnlessCreative(1, user);
+                        }
+
+                        user.incrementStat(Stats.USED.getOrCreateStat(this));
+                        return ActionResult.SUCCESS;
+                    }
+                }
+            } else {
+                return ActionResult.PASS;
+            }
         }
-
-        BlockPos blockPos = blockHitResult.getBlockPos();
-        if (!(world instanceof ServerWorld serverWorld)) {
-            return ActionResult.SUCCESS;
-        }
-
-        if (!world.canEntityModifyAt(user, blockPos) || !user.canPlaceOn(blockPos, blockHitResult.getSide(), itemStack)) {
-            return ActionResult.FAIL;
-        }
-
-        MrScootEntity entity = createEntity(world, blockHitResult, itemStack, user);
-        if (entity == null) return ActionResult.PASS;
-
-        world.spawnEntity(entity);
-        itemStack.decrementUnlessCreative(1, user);
-        user.incrementStat(Stats.USED.getOrCreateStat(this));
-        world.emitGameEvent(user, GameEvent.ENTITY_PLACE, entity.getPos());
-
-        return ActionResult.SUCCESS;
     }
 
 
     @Nullable
     private MrScootEntity createEntity(World world, HitResult hitResult, ItemStack stack, PlayerEntity player) {
-        MrScootEntity entity = this.boatEntityType.create(world, SpawnReason.SPAWN_ITEM_USE);
+        MrScootEntity entity = new MrScootEntity(mrScootType, world);
         if (entity != null) {
             Vec3d vec3d = hitResult.getPos();
-            entity.setPos(vec3d.x, vec3d.y + 0.25, vec3d.z);
-            if (world instanceof ServerWorld serverWorld) {
+            entity.initPosition(vec3d.x, vec3d.y, vec3d.z);
+            if (world instanceof ServerWorld) {
+                ServerWorld serverWorld = (ServerWorld)world;
                 EntityType.copier(serverWorld, stack, player).accept(entity);
             }
         }
