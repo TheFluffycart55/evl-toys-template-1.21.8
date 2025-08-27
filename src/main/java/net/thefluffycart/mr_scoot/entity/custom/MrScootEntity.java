@@ -4,7 +4,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.LilyPadBlock;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.*;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.mob.CreakingEntity;
 import net.minecraft.entity.mob.WaterCreatureEntity;
@@ -22,6 +24,7 @@ import net.minecraft.predicate.entity.EntityPredicates;
 import net.minecraft.registry.tag.EntityTypeTags;
 import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.server.network.EntityTrackerEntry;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.storage.ReadView;
 import net.minecraft.storage.WriteView;
 import net.minecraft.util.ActionResult;
@@ -39,7 +42,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class MrScootEntity extends VehicleEntity implements Leashable{
-    private Supplier<Item> itemSupplier;
     private float ticksUnderwater;
     private float yawVelocity;
     private final PositionInterpolator interpolator = new PositionInterpolator(this, 3);
@@ -112,22 +114,22 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     protected Vec3d getPassengerAttachmentPos(Entity passenger, EntityDimensions dimensions, float scaleFactor) {
-        float f = this.getPassengerHorizontalOffset();
-        double g = this.getPassengerAttachmentY(dimensions);
-        if (this.getPassengerList().size() > 1) {
-            int i = this.getPassengerList().indexOf(passenger);
-            if (i == 0) {
-                f = 0.2F;
-            } else {
-                f = 0.3F;
-                g = 1F;
-            }
+        double yOffset = this.getPassengerAttachmentY(dimensions);
+        double xOffset = 0.0;
+        double zOffset = 0.0;
 
-            if (passenger instanceof AnimalEntity) {
-                f += 0.2F;
-            }
+        int index = this.getPassengerList().indexOf(passenger);
+
+        if (index == 0) {
+            zOffset = -0.2;
+            yOffset = 0.85;
+        } else if (index == 1) {
+            zOffset = -0.5;
+            yOffset = 2.45;
         }
-        return (new Vec3d((double)0.0F, this.getPassengerAttachmentY(dimensions), (double)f)).rotateY(-this.getYaw() * ((float)Math.PI / 180F));
+
+        Vec3d offset = new Vec3d(xOffset, yOffset, zOffset);
+        return offset.rotateY(-this.getYaw() * ((float)Math.PI / 180F));
     }
 
     public void initPosition(double x, double y, double z) {
@@ -146,11 +148,6 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
             super.pushAwayFrom(entity);
         }
 
-    }
-
-    @Override
-    public boolean canHit() {
-        return this.getFirstPassenger() == null;
     }
 
     public PositionInterpolator getInterpolator() {
@@ -173,7 +170,20 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
         return ActionResult.SUCCESS;
     }
 
+    public boolean damage(ServerWorld world, DamageSource source, float amount) {
+        Entity attacker = source.getAttacker();
 
+        if (attacker != null && attacker == this.getFirstPassenger()) {
+            return false;
+        }
+
+        return super.damage(world, source, amount);
+    }
+
+    @Override
+    public boolean canHit() {
+        return !this.isRemoved();
+    }
 
     @Override
     public ActionResult interactAt(PlayerEntity player, Vec3d hitPos, Hand hand) {
@@ -182,6 +192,7 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
         }
         return super.interactAt(player, hitPos, hand);
     }
+
 
 
     public void tick() {
@@ -248,7 +259,8 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     private void startMovement() {
-        if (this.hasPassengers()) {
+        Entity controlling = this.getControllingPassenger();
+        if (controlling instanceof PlayerEntity && controlling == this.getFirstPassenger()) {
             float f = 0.0F;
             if (this.pressingLeft) {
                 --this.yawVelocity;
@@ -271,9 +283,14 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
                 f -= 0.015F;
             }
 
-            this.setVelocity(this.getVelocity().add((double)(MathHelper.sin(-this.getYaw() * ((float)Math.PI / 180F)) * f), (double)0.0F, (double)(MathHelper.cos(this.getYaw() * ((float)Math.PI / 180F)) * f)));
+            this.setVelocity(this.getVelocity().add(
+                    MathHelper.sin(-this.getYaw() * ((float)Math.PI / 180F)) * f,
+                    0.0F,
+                    MathHelper.cos(this.getYaw() * ((float)Math.PI / 180F)) * f
+            ));
         }
     }
+
 
     @Nullable
     public Leashable.LeashData getLeashData() {
@@ -281,7 +298,7 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
     }
 
     protected final Item asItem() {
-        return (Item)this.itemSupplier.get();
+        return (EVLItems.MR_SCOOT_ITEM);
     }
 
     public final ItemStack getPickBlockStack() {
@@ -609,13 +626,29 @@ public class MrScootEntity extends VehicleEntity implements Leashable{
         return var10000;
     }
 
+
     public void setInputs(boolean pressingLeft, boolean pressingRight, boolean pressingForward, boolean pressingBack, boolean pressingHonk) {
+        if (!this.getWorld().isClient) {
+            this.pressingLeft = pressingLeft;
+            this.pressingRight = pressingRight;
+            this.pressingForward = pressingForward;
+            this.pressingBack = pressingBack;
+            this.pressingHonk = pressingHonk;
+            return;
+        }
+
+        if (this.getControllingPassenger() != MinecraftClient.getInstance().player) {
+            return;
+        }
+
         this.pressingLeft = pressingLeft;
         this.pressingRight = pressingRight;
         this.pressingForward = pressingForward;
         this.pressingBack = pressingBack;
         this.pressingHonk = pressingHonk;
     }
+
+
 
     public boolean isSubmergedInWater() {
         return this.location == MrScootEntity.Location.UNDER_WATER || this.location == MrScootEntity.Location.UNDER_FLOWING_WATER;

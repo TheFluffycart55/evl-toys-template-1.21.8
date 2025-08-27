@@ -9,7 +9,6 @@ import net.minecraft.sound.SoundEvents;
 import java.util.List;
 
 public class EVLConsumableComponents {
-    public static final ConsumableComponent DRINK = drink().build();
     public static final ConsumableComponent BEER;
 
 
@@ -18,6 +17,6 @@ public class EVLConsumableComponents {
     }
 
     static {
-        BEER = drink().consumeEffect(new ApplyEffectsConsumeEffect(List.of(new StatusEffectInstance(StatusEffects.RESISTANCE, 1200, 1), new StatusEffectInstance(StatusEffects.HUNGER, 300, 2), new StatusEffectInstance(StatusEffects.NAUSEA, 600, 0)))).build();
+        BEER = drink().consumeEffect(new ApplyEffectsConsumeEffect(List.of(new StatusEffectInstance(StatusEffects.RESISTANCE, 200, 0), new StatusEffectInstance(StatusEffects.HUNGER, 300, 1), new StatusEffectInstance(StatusEffects.NAUSEA, 300, 0)))).build();
     }
 }
